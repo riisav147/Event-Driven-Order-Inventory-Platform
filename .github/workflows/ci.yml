@@ -31,7 +31,7 @@ jobs:
         run: ./mvnw -B -ntp clean verify
       - name: Test reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-reports
           path: '**/target/surefire-reports/*'
@@ -78,7 +78,7 @@ jobs:
           docker compose -f docker-compose.dev.yml -f docker-compose.runtime.yml logs --no-color > evidence/compose.log
       - name: Preserve reports and tested images
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: container-evidence
           path: evidence/
