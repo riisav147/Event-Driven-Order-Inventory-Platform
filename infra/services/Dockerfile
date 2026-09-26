@@ -9,7 +9,7 @@ RUN case "$MODULE" in core-platform|inventory-service|notification-service) ;; *
 RUN --mount=type=cache,target=/root/.m2,sharing=locked mvn -B -ntp -Dmaven.test.skip=true install && mvn -B -ntp -pl apps/${MODULE} dependency:copy-dependencies -DincludeScope=runtime
 RUN mkdir /output && cp apps/${MODULE}/target/${MODULE}-0.1.0-SNAPSHOT.jar /output/app.jar && cp -r apps/${MODULE}/target/dependency /output/lib
 
-FROM eclipse-temurin:21-jre-jammy
+FROM eclipse-temurin:22-jre-jammy
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ARG APP_MAIN=com.example.platform.PlatformApplication
