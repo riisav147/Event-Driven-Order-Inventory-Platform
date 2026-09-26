@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/riisav147/Event-Driven-Order-Inventory-Platform/actions/workflows/ci.yml/badge.svg)](https://github.com/riisav147/Event-Driven-Order-Inventory-Platform/actions/workflows/ci.yml)
 
-Commerce backend through Phase 12: core order/payment orchestration, independent inventory and Kafka notification services, and cross-service observability.
+Commerce backend through Phase 13: core order/payment orchestration, independent inventory and Kafka notification services, cross-service observability, and verified container CI/CD.
 
 ## Run locally
 
@@ -67,6 +67,6 @@ With the stack running, execute `ruby scripts/observability-smoke.rb` for read-o
 
 ## Containers and CI/CD (Phase 13)
 
-The hardened runtime overlay and test/scan/image-publishing workflow are implemented. Local verification passed 88 tests on Java 21, all four image builds, business/dashboard smoke tests and the high/critical fixable-vulnerability scan. See [container and CI instructions](docs/container-ci.md) for startup, tagging and rollback, and [verification status](docs/evidence/phase13.md) for hosted CI/publication status.
+Local verification passed 88 tests on Java 21, all four image builds, business/dashboard smoke tests and the high/critical fixable-vulnerability scan. [Hosted CI and GHCR publication also passed](https://github.com/riisav147/Event-Driven-Order-Inventory-Platform/actions/runs/36253657254). See [container and CI instructions](docs/container-ci.md) for startup, tagging and rollback, and [verification evidence](docs/evidence/phase13.md) for published image tags and limitations.
 
 This is a local learning platform, not a real payment/email integration or production HA deployment. AWS deployment and load-testing phases are not included.

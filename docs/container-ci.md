@@ -4,6 +4,8 @@
 
 Requires Docker Engine/Desktop with Compose v2.24+ (or v5), Ruby for smoke scripts, and Java 21 for host tests. Allow at least 8 GB memory for the entire learning stack and free the application/monitoring ports in Compose. The runtime overlay removes host database/cache port mappings; inspect those through `docker compose exec`. From the repository root, using disposable development data:
 
+On macOS, if Docker Desktop is installed but `docker` is not on PATH, first run `export PATH="/Applications/Docker.app/Contents/Resources/bin:$PATH"` in your terminal.
+
 ```bash
 export COMPOSE_PROJECT_NAME=phase13-demo
 export IMAGE_TAG=local-phase13
@@ -38,7 +40,7 @@ Workflow artifacts retain test reports, vulnerability JSON, Compose status/logs 
 
 ## Repository owner setup
 
-The selected repository is `riisav147/Event-Driven-Order-Inventory-Platform`; its GHCR prefix is `ghcr.io/riisav147/event-driven-order-inventory-platform`. The README badge points to that repository, but no successful hosted run is claimed. This workspace still needs its initial Git publication. After pushing:
+The repository is `riisav147/Event-Driven-Order-Inventory-Platform`; its GHCR prefix is `ghcr.io/riisav147/event-driven-order-inventory-platform`. Initial source publication, hosted CI and image publishing succeeded; see [recorded evidence](evidence/phase13.md). Repository owners should still configure and review:
 
 - Enable Actions and GHCR publishing with GITHUB_TOKEN.
 - Create the `registry` environment with reviewers and restrictions to main/intended release tags. The YAML environment name alone does not enforce approval.

@@ -35,10 +35,19 @@ Verified local ARM64 image config IDs (not registry manifest digests):
 | notification-service | `sha256:c0a62a340cc0079a97e11688e05524c9787a207c4909bce606960f5bd8e53b4e` |
 | mock-gateway | `sha256:fda66043d911d4bf6b5885cf132daae73b7d22b39f3a28519686f149f07b4e8e` |
 
-## Outstanding exit-gate proof
+## Hosted CI and publication
 
-Local execution gates passed. The selected GitHub repository is `riisav147/Event-Driven-Order-Inventory-Platform`. Hosted CI and GHCR publication still require a successful remote run; the local ARM64 result does not prove the hosted Linux AMD64 run.
+The [GitHub Actions run](https://github.com/riisav147/Event-Driven-Order-Inventory-Platform/actions/runs/36253657254) completed successfully for commit `181d4e6e5ec8aa6c58ea43875be0dd124163a163`. The Linux AMD64 runner passed `verify`, `containers` and `publish`: Java 21 tests, fresh image builds, all image scans, complete Compose startup, business/dashboard/alert smoke, artifact capture and GHCR publishing of the saved tested images.
 
-Follow [the rehearsal and repository setup guide](../container-ci.md) on a Docker-enabled machine and GitHub repository. Record the first successful run URL, image digests, scan reports and smoke output here. If scanning reports vulnerabilities, fix/review them before publication; do not bypass the gate. Configure branch/tag/environment protections on GitHub before allowing release publication.
+Published image names under `ghcr.io/riisav147/event-driven-order-inventory-platform/`:
 
-**Status: local implementation and execution verified; hosted publication pending.** No AWS resources or deployment were created.
+- `core-platform:sha-181d4e6e5ec8aa6c58ea43875be0dd124163a163`
+- `inventory-service:sha-181d4e6e5ec8aa6c58ea43875be0dd124163a163`
+- `notification-service:sha-181d4e6e5ec8aa6c58ea43875be0dd124163a163`
+- `mock-gateway:sha-181d4e6e5ec8aa6c58ea43875be0dd124163a163`
+
+Registry manifest digests are recorded in the publishing job summary; local ARM64 config IDs above are not substitutes. Scan reports, Compose logs/status and tested images are attached as `container-evidence` (7-day retention), with test reports retained for 14 days. Registry package visibility/access and branch/tag/environment reviewer rules remain repository-owner settings; their enforcement was not configured or audited by this implementation.
+
+Follow [the rehearsal and repository setup guide](../container-ci.md) for later releases. A future scan finding must still block publishing until fixed/reviewed. No suppression was added to pass this run.
+
+**Status: Phase 13 implementation, local execution, hosted CI and image publication verified.** No AWS resources or deployment were created.
