@@ -1,0 +1,33 @@
+# Local production-like rehearsal, NOT an Internet-facing production environment.
+x-runtime: &runtime
+  read_only: true
+  tmpfs: ["/tmp:rw,noexec,nosuid,size=128m"]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  mem_limit: 768m
+  cpus: 1.0
+  stop_grace_period: 40s
+  environment:
+    SERVER_SHUTDOWN: graceful
+    SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE: 30s
+services:
+  # Databases/cache are internal in the production-like rehearsal. This also
+  # avoids collisions with a developer's existing local PostgreSQL/Redis.
+  postgres:
+    ports: !reset []
+  inventory-db:
+    ports: !reset []
+  notification-db:
+    ports: !reset []
+  gateway-db:
+    ports: !reset []
+  redis:
+    ports: !reset []
+  core-platform:
+    <<: *runtime
+  inventory-service:
+    <<: *runtime
+  notification-service:
+    <<: *runtime
+  mock-gateway:
+    <<: *runtime

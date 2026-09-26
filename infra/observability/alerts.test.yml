@@ -1,0 +1,74 @@
+rule_files: [alerts.yml]
+evaluation_interval: 1m
+tests:
+  - name: backlog-fires-and-recovers
+    interval: 1m
+    input_series:
+      - series: 'platform_outbox_oldest_age_seconds{application="core-platform"}'
+        values: '0 90 120 180 0 0'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: OutboxBacklog
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: OutboxBacklog
+        exp_alerts:
+          - exp_labels: {application: core-platform, severity: warning}
+            exp_annotations: {summary: "Committed events have not been delivered", runbook: "docs/runbooks/kafka-lag.md"}
+      - eval_time: 5m
+        alertname: OutboxBacklog
+        exp_alerts: []
+  - name: service-down-and-recovery
+    interval: 1m
+    input_series:
+      - series: 'up{job="platform",instance="core-platform:8080"}'
+        values: '1 0 0 0 1'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: ServiceUnavailable
+        exp_alerts:
+          - exp_labels: {job: platform, instance: "core-platform:8080", severity: critical}
+            exp_annotations: {summary: "Service scrape unavailable: core-platform:8080", runbook: "docs/observability.md"}
+      - eval_time: 4m
+        alertname: ServiceUnavailable
+        exp_alerts: []
+  - name: stuck-order-and-dead-letter
+    interval: 1m
+    input_series:
+      - series: 'platform_saga_oldest_age_seconds{application="core-platform"}'
+        values: '180 240 300'
+      - series: 'platform_dlt_unreplayed{application="notification-service"}'
+        values: '1 1 1'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: OrderSagaStuck
+        exp_alerts:
+          - exp_labels: {application: core-platform, severity: critical}
+            exp_annotations: {summary: "An order saga has not completed", runbook: "docs/runbooks/order-stuck.md"}
+      - eval_time: 2m
+        alertname: DeadLettersPending
+        exp_alerts:
+          - exp_labels: {application: notification-service, severity: warning}
+            exp_annotations: {summary: "Notification delivery needs investigation", runbook: "docs/dlt-runbook.md"}
+  - name: growing-committed-lag
+    interval: 1m
+    input_series:
+      - series: 'platform_kafka_group_lag{application="notification-service",group="platform.notifications.v1"}'
+        values: '200+100x10'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: NotificationLagGrowing
+        exp_alerts:
+          - exp_labels: {application: notification-service, group: platform.notifications.v1, severity: warning}
+            exp_annotations: {summary: "Committed notification backlog is growing", runbook: "docs/runbooks/kafka-lag.md"}
+  - name: blind-telemetry-is-not-zero-backlog
+    interval: 1m
+    input_series:
+      - series: 'platform_telemetry_database_available{application="core-platform"}'
+        values: '0 0 0'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: TelemetryBlind
+        exp_alerts:
+          - exp_labels: {application: core-platform, severity: warning}
+            exp_annotations: {summary: "Backlog telemetry unavailable; absence of values is not a healthy zero", runbook: "docs/observability.md"}

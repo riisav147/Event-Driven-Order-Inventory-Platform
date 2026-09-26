@@ -1,0 +1,33 @@
+groups:
+  - name: platform
+    rules:
+      - alert: ServiceUnavailable
+        expr: up{job="platform"} == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "Service scrape unavailable: {{ $labels.instance }}", runbook: "docs/observability.md"}
+      - alert: OutboxBacklog
+        expr: platform_outbox_oldest_age_seconds > 60
+        for: 2m
+        labels: {severity: warning}
+        annotations: {summary: "Committed events have not been delivered", runbook: "docs/runbooks/kafka-lag.md"}
+      - alert: OrderSagaStuck
+        expr: platform_saga_oldest_age_seconds > 120
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "An order saga has not completed", runbook: "docs/runbooks/order-stuck.md"}
+      - alert: NotificationLagGrowing
+        expr: platform_kafka_group_lag > 100 and delta(platform_kafka_group_lag[5m]) > 0
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "Committed notification backlog is growing", runbook: "docs/runbooks/kafka-lag.md"}
+      - alert: DeadLettersPending
+        expr: platform_dlt_unreplayed > 0
+        for: 1m
+        labels: {severity: warning}
+        annotations: {summary: "Notification delivery needs investigation", runbook: "docs/dlt-runbook.md"}
+      - alert: TelemetryBlind
+        expr: platform_telemetry_database_available == 0 or (time() - platform_telemetry_database_last_success_seconds > 45) or platform_telemetry_kafka_available == 0
+        for: 2m
+        labels: {severity: warning}
+        annotations: {summary: "Backlog telemetry unavailable; absence of values is not a healthy zero", runbook: "docs/observability.md"}

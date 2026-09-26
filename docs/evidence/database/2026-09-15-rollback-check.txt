@@ -1,0 +1,6 @@
+Environment: PostgreSQL 17.11, local isolated instance
+Scenario: Insert an order and order item, then violate the unique order_number constraint in the same transaction.
+Observed error: duplicate key value violates unique constraint orders_order_number_key
+Verification: after ROLLBACK, SELECT count(*) FROM orders WHERE order_number = 'ROLLBACK-1' returned 0.
+
+Conclusion: the failed multi-row operation left no order row behind, demonstrating transaction rollback for this path.

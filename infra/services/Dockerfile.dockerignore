@@ -1,0 +1,8 @@
+**
+!pom.xml
+!apps/
+!apps/**
+!libs/
+!libs/**
+**/target
+**/.env*

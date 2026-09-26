@@ -1,0 +1,56 @@
+server:
+  port: ${SERVER_PORT:8082}
+spring:
+  application:
+    name: inventory-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/inventory}
+    username: ${DB_USERNAME:inventory}
+    password: ${DB_PASSWORD}
+  flyway:
+    locations: classpath:db/inventory
+service:
+  password: ${INVENTORY_PASSWORD}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  tracing:
+    sampling:
+      probability: ${TRACE_SAMPLE_PROBABILITY:0.1}
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+      timeout: 1s
+      export:
+        enabled: ${TRACING_EXPORT_ENABLED:false}
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        http.client.requests: true
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db
+      probes:
+        enabled: true
+
+platform:
+  telemetry:
+    role: inventory
+    database-enabled: ${TELEMETRY_DATABASE_ENABLED:true}
+    metrics-token: ${METRICS_TOKEN:local-metrics-only}
+
+logging:
+  structured:
+    format:
+      console: ${PLATFORM_LOG_FORMAT:}

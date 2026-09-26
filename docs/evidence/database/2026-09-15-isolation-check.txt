@@ -1,0 +1,4 @@
+Environment: PostgreSQL 17.11, local isolated instance
+Default transaction isolation: read committed
+
+This matches the Phase 3 baseline. Stronger isolation levels should be compared in a dedicated contention test before changing the application default.

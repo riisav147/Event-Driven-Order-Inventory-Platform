@@ -1,0 +1,111 @@
+spring:
+  application:
+    name: core-platform
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/order_platform}
+    username: ${DB_USERNAME:platform}
+    password: ${DB_PASSWORD:platform_dev_only}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        max.block.ms: 1000
+        delivery.timeout.ms: 10000
+        request.timeout.ms: 3000
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+    template:
+      observation-enabled: true
+    listener:
+      observation-enabled: true
+      ack-mode: record
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      connect-timeout: 300ms
+      timeout: 300ms
+
+platform:
+  telemetry:
+    role: core
+    database-enabled: ${TELEMETRY_DATABASE_ENABLED:true}
+    metrics-token: ${METRICS_TOKEN:local-metrics-only}
+  messaging:
+    enabled: ${KAFKA_ENABLED:false}
+    relay-enabled: ${OUTBOX_RELAY_ENABLED:true}
+    order-topic: platform.orders.v1
+    notification-group: platform.notifications.v1
+  security:
+    jwt-secret: ${JWT_SECRET:change-this-development-secret-to-a-long-random-value-32chars}
+    access-token-minutes: ${JWT_ACCESS_TOKEN_MINUTES:15}
+
+management:
+  tracing:
+    sampling:
+      probability: ${TRACE_SAMPLE_PROBABILITY:0.1}
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+      timeout: 1s
+      export:
+        enabled: ${TRACING_EXPORT_ENABLED:false}
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        http.client.requests: true
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db
+      probes:
+        enabled: true
+
+server:
+  port: ${SERVER_PORT:8080}
+
+inventory:
+  url: ${INVENTORY_URL:http://localhost:8082}
+  password: ${INVENTORY_PASSWORD:local-inventory-only}
+
+payment:
+  gateway: ${PAYMENT_GATEWAY:http}
+  http:
+    url: ${PAYMENT_GATEWAY_URL:http://localhost:8081/charges}
+    connect-timeout: 200ms
+    attempt-timeout: 750ms
+    overall-timeout: 1700ms
+    retry-delay: 50ms
+    max-concurrent: 8
+    open-duration: 5s
+
+logging:
+  structured:
+    format:
+      console: ${PLATFORM_LOG_FORMAT:}

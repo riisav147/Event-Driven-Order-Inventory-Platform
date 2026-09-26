@@ -1,0 +1,14 @@
+Environment: PostgreSQL 17.11, local isolated instance
+Dataset: 10,000 enabled products
+Query: SELECT id, sku, name, price, currency FROM products WHERE enabled = true ORDER BY name;
+
+Plan:
+Index Scan using idx_products_enabled_name on products  (cost=0.29..733.41 rows=10000 width=46) (actual time=0.005..1.563 rows=10000 loops=1)
+  Index Cond: (enabled = true)
+  Buffers: shared hit=2060
+Planning:
+  Buffers: shared hit=61
+Planning Time: 0.249 ms
+Execution Time: 1.960 ms
+
+Observation: PostgreSQL selected the Phase 3 composite index for the enabled catalog query. This is one measured result in one local environment, not a general latency claim.

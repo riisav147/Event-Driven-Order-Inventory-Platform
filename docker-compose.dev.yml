@@ -1,0 +1,237 @@
+# Local development only: example credentials and plaintext service networking.
+services:
+  core-platform:
+    image: ${IMAGE_PREFIX:-platform}/core-platform:${IMAGE_TAG:-dev}
+    build:
+      context: .
+      dockerfile: infra/services/Dockerfile
+      args:
+        MODULE: core-platform
+        APP_MAIN: com.example.platform.PlatformApplication
+    environment:
+      PLATFORM_LOG_FORMAT: ecs
+      METRICS_TOKEN: local-metrics-only
+      TRACING_EXPORT_ENABLED: "true"
+      TRACE_SAMPLE_PROBABILITY: "1.0"
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
+      DB_URL: jdbc:postgresql://postgres:5432/order_platform
+      DB_USERNAME: platform
+      DB_PASSWORD: platform_dev_only
+      REDIS_HOST: redis
+      KAFKA_ENABLED: "true"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      INVENTORY_URL: http://inventory-service:8082
+      INVENTORY_PASSWORD: local-inventory-only
+      PAYMENT_GATEWAY: http
+      PAYMENT_GATEWAY_URL: http://mock-gateway:8081/charges
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+      inventory-service: {condition: service_healthy}
+      mock-gateway: {condition: service_healthy}
+  inventory-service:
+    image: ${IMAGE_PREFIX:-platform}/inventory-service:${IMAGE_TAG:-dev}
+    build:
+      context: .
+      dockerfile: infra/services/Dockerfile
+      args:
+        MODULE: inventory-service
+        APP_MAIN: com.example.inventory.InventoryApplication
+    environment:
+      HEALTH_PORT: "8082"
+      PLATFORM_LOG_FORMAT: ecs
+      METRICS_TOKEN: local-metrics-only
+      TRACING_EXPORT_ENABLED: "true"
+      TRACE_SAMPLE_PROBABILITY: "1.0"
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
+      DB_URL: jdbc:postgresql://inventory-db:5432/inventory
+      DB_USERNAME: inventory
+      DB_PASSWORD: inventory_dev_only
+      INVENTORY_PASSWORD: local-inventory-only
+    ports: ["127.0.0.1:8082:8082"]
+    depends_on:
+      inventory-db: {condition: service_healthy}
+  notification-service:
+    image: ${IMAGE_PREFIX:-platform}/notification-service:${IMAGE_TAG:-dev}
+    build:
+      context: .
+      dockerfile: infra/services/Dockerfile
+      args:
+        MODULE: notification-service
+        APP_MAIN: com.example.notification.NotificationApplication
+    environment:
+      HEALTH_PORT: "8083"
+      PLATFORM_LOG_FORMAT: ecs
+      METRICS_TOKEN: local-metrics-only
+      TRACING_EXPORT_ENABLED: "true"
+      TRACE_SAMPLE_PROBABILITY: "1.0"
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
+      DB_URL: jdbc:postgresql://notification-db:5432/notification
+      DB_USERNAME: notification
+      DB_PASSWORD: notification_dev_only
+      NOTIFICATION_PASSWORD: local-notification-only
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+    ports: ["127.0.0.1:8083:8083"]
+    depends_on:
+      notification-db: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+  mock-gateway:
+    image: ${IMAGE_PREFIX:-platform}/mock-gateway:${IMAGE_TAG:-dev}
+    build:
+      context: .
+      dockerfile: infra/services/Dockerfile
+      args:
+        MODULE: core-platform
+        APP_MAIN: com.example.gateway.MockGatewayServer
+    environment:
+      HEALTH_PORT: "8081"
+      HEALTH_PATH: /health
+      DB_URL: jdbc:postgresql://gateway-db:5432/gateway
+      DB_USERNAME: gateway
+      DB_PASSWORD: gateway_dev_only
+      MOCK_GATEWAY_BIND: 0.0.0.0
+      MOCK_GATEWAY_OUTCOME: ${MOCK_GATEWAY_OUTCOME:-SUCCESS}
+      MOCK_GATEWAY_FAULT: ${MOCK_GATEWAY_FAULT:-NONE}
+      MOCK_GATEWAY_DELAY_MS: ${MOCK_GATEWAY_DELAY_MS:-2000}
+    ports: ["127.0.0.1:8081:8081"]
+    depends_on:
+      gateway-db: {condition: service_healthy}
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: order_platform
+      POSTGRES_USER: platform
+      POSTGRES_PASSWORD: platform_dev_only
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: ["platform-postgres-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U platform -d order_platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  inventory-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: inventory
+      POSTGRES_USER: inventory
+      POSTGRES_PASSWORD: inventory_dev_only
+    ports: ["127.0.0.1:5433:5432"]
+    volumes: ["inventory-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inventory -d inventory"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  notification-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: notification
+      POSTGRES_USER: notification
+      POSTGRES_PASSWORD: notification_dev_only
+    ports: ["127.0.0.1:5434:5432"]
+    volumes: ["notification-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notification -d notification"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  gateway-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: gateway
+      POSTGRES_USER: gateway
+      POSTGRES_PASSWORD: gateway_dev_only
+    ports: ["127.0.0.1:5435:5432"]
+    volumes: ["gateway-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gateway -d gateway"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  redis:
+    image: redis:7-alpine
+    ports: ["127.0.0.1:6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  kafka:
+    image: apache/kafka:3.9.1
+    ports:
+      - "127.0.0.1:9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: EXTERNAL://:9092,INTERNAL://:19092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:9092,INTERNAL://kafka:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    volumes:
+      - platform-kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:19092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=7d"]
+    ports: ["127.0.0.1:9090:9090"]
+    volumes:
+      - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - platform-prometheus-data:/prometheus
+  grafana:
+    image: grafana/grafana:13.2.2
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: local-grafana-only
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    ports: ["127.0.0.1:3000:3000"]
+    volumes:
+      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - platform-grafana-data:/var/lib/grafana
+  tempo-volume-init:
+    image: redis:7-alpine
+    user: "0:0"
+    entrypoint: ["chown", "10001:10001", "/data"]
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN]
+    volumes:
+      - platform-tempo-data:/data
+  tempo:
+    image: grafana/tempo:3.0.3
+    depends_on:
+      tempo-volume-init: {condition: service_completed_successfully}
+    command: ["-target=all", "-config.file=/etc/tempo.yml"]
+    ports: ["127.0.0.1:3200:3200", "127.0.0.1:4318:4318"]
+    volumes:
+      - ./infra/observability/tempo.yml:/etc/tempo.yml:ro
+      - platform-tempo-data:/tmp/tempo
+
+volumes:
+  platform-prometheus-data:
+  platform-grafana-data:
+  platform-tempo-data:
+  platform-postgres-data:
+  platform-kafka-data:
+  inventory-data:
+  notification-data:
+  gateway-data:

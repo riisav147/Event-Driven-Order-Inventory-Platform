@@ -1,0 +1,127 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Unit and real PostgreSQL/Redis/Kafka integration tests
+        run: ./mvnw -B -ntp clean verify
+      - name: Test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: '**/target/surefire-reports/*'
+          retention-days: 14
+
+  containers:
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      IMAGE_TAG: ${{ github.sha }}
+      COMPOSE_PROJECT_NAME: phase13-ci
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build all deployables from source
+        run: |
+          docker compose -f docker-compose.dev.yml -f docker-compose.runtime.yml config --quiet
+          docker compose -f docker-compose.dev.yml -f docker-compose.runtime.yml build --pull --no-cache --build-arg REVISION="$GITHUB_SHA" --build-arg SOURCE="https://github.com/$GITHUB_REPOSITORY"
+      - name: Scan every image (OS and Java dependencies)
+        run: |
+          mkdir -p evidence
+          for service in core-platform inventory-service notification-service mock-gateway; do
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD/evidence:/reports" -v phase13-trivy-cache:/root/.cache/trivy ghcr.io/aquasecurity/trivy:0.74.0 image --timeout 15m --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --format json --output "/reports/$service.json" "platform/$service:$IMAGE_TAG"
+          done
+      - name: Start production-like local stack
+        run: docker compose -f docker-compose.dev.yml -f docker-compose.runtime.yml up -d --no-build --wait --wait-timeout 240
+      - name: End-to-end business and dashboard smoke
+        env:
+          SMOKE_DISPOSABLE: 'true'
+        run: |
+          ruby scripts/container-smoke.rb
+          ruby scripts/observability-smoke.rb
+          docker run --rm --entrypoint promtool -v "$PWD/infra/observability:/rules:ro" -w /rules prom/prometheus:v3.14.0 test rules alerts.test.yml
+      - name: Save tested images for publishing (no rebuild)
+        if: github.event_name == 'push'
+        run: docker save -o evidence/images.tar "platform/core-platform:$IMAGE_TAG" "platform/inventory-service:$IMAGE_TAG" "platform/notification-service:$IMAGE_TAG" "platform/mock-gateway:$IMAGE_TAG"
+      - name: Capture diagnostics
+        if: always()
+        run: |
+          mkdir -p evidence
+          docker compose -f docker-compose.dev.yml -f docker-compose.runtime.yml ps -a > evidence/compose-status.txt
+          docker compose -f docker-compose.dev.yml -f docker-compose.runtime.yml logs --no-color > evidence/compose.log
+      - name: Preserve reports and tested images
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-evidence
+          path: evidence/
+          retention-days: 7
+      - name: Stop isolated CI stack
+        if: always()
+        run: docker compose -f docker-compose.dev.yml -f docker-compose.runtime.yml down --volumes --remove-orphans
+
+  publish:
+    needs: [verify, containers]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: registry
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: container-evidence
+          path: evidence
+      - name: Publish exactly the tested images
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          registry="ghcr.io/${GITHUB_REPOSITORY,,}"
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
+          trap 'docker logout ghcr.io' EXIT
+          docker load -i evidence/images.tar
+          if [ "$REF_TYPE" = tag ]; then
+            [[ "$REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]] || { echo 'Invalid release tag'; exit 1; }
+          fi
+          for service in core-platform inventory-service notification-service mock-gateway; do
+            image="$registry/$service"
+            docker tag "platform/$service:$GITHUB_SHA" "$image:sha-$GITHUB_SHA"
+            docker push "$image:sha-$GITHUB_SHA"
+            docker inspect --format '{{index .RepoDigests 0}}' "$image:sha-$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$REF_TYPE" = tag ]; then
+              docker tag "$image:sha-$GITHUB_SHA" "$image:$REF_NAME"
+              docker push "$image:$REF_NAME"
+            fi
+          done
